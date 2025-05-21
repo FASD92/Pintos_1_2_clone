@@ -72,7 +72,12 @@ filesys_create (const char *name, off_t initial_size) {
 	return success;
 }
 
-/* Opens the file with the given NAME.
+/* 주어진 NAME의 파일을 엽니다.  
+ * 성공 시 새 파일을 반환하고, 실패 시 널 포인터를 반환합니다.  
+ * NAME 이름의 파일이 존재하지 않으면 실패하며,  
+ * 내부 메모리 할당이 실패한 경우에도 실패합니다.
+
+ * Opens the file with the given NAME.
  * Returns the new file if successful or a null pointer
  * otherwise.
  * Fails if no file named NAME exists,

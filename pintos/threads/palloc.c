@@ -253,7 +253,14 @@ palloc_init (void) {
 	return ext_mem.end;
 }
 
-/* Obtains and returns a group of PAGE_CNT contiguous free pages.
+/* PAGE_CNT개의 연속된 여유 페이지 그룹을 획득하고 반환합니다.  
+ * PAL_USER가 설정된 경우 페이지는 사용자 풀에서,  
+ * 그렇지 않으면 커널 풀에서 획득됩니다.  
+ * FLAGS에 PAL_ZERO가 설정된 경우 페이지들은 0으로 채워집니다.  
+ * 사용 가능한 페이지가 너무 적은 경우 PAL_ASSERT가 FLAGS에 설정되지 않았다면 널 포인터를 반환하며,  
+ * PAL_ASSERT가 설정된 경우 커널 패닉을 발생시킵니다.
+ * 
+ * Obtains and returns a group of PAGE_CNT contiguous free pages.
    If PAL_USER is set, the pages are obtained from the user pool,
    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
    then the pages are filled with zeros.  If too few pages are
@@ -284,7 +291,14 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
 	return pages;
 }
 
-/* Obtains a single free page and returns its kernel virtual
+/* 단일 여유 페이지를 획득하여 커널 가상 주소를 반환합니다.
+ * PAL_USER가 설정된 경우 페이지는 사용자 풀에서,
+ * 그렇지 않으면 커널 풀에서 획득합니다.
+ * FLAGS에 PAL_ZERO가 설정된 경우 페이지를 0으로 채워집니다.
+ * 사용 가능한 페이지가 없는 경우 PAL_ASSERT가 FLAGS에 설정되지 않았다면 널 포인터를 반환하며,
+ * PAL_ASSERT가 설정된 경우 커널 패닉을 발생시킵니다.
+ * 
+ * Obtains a single free page and returns its kernel virtual
    address.
    If PAL_USER is set, the page is obtained from the user pool,
    otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,

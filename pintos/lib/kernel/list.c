@@ -152,7 +152,11 @@ list_tail (struct list *list) {
 
 /* Inserts ELEM just before BEFORE, which may be either an
    interior element or a tail.  The latter case is equivalent to
-   list_push_back(). */
+   list_push_back().
+   
+   ELEM을 BEFORE 바로 앞에 삽입한다.
+	BEFORE는 리스트 내부의 요소일 수도 있고, **리스트의 꼬리(tail)**일 수도 있다.
+	후자의 경우는 list_push_back()과 동일하다. */
 void
 list_insert (struct list_elem *before, struct list_elem *elem) {
 	ASSERT (is_interior (before) || is_tail (before));
@@ -414,7 +418,11 @@ list_sort (struct list *list, list_less_func *less, void *aux) {
 
 /* Inserts ELEM in the proper position in LIST, which must be
    sorted according to LESS given auxiliary data AUX.
-   Runs in O(n) average case in the number of elements in LIST. */
+   Runs in O(n) average case in the number of elements in LIST.
+   
+ 	ELEM을 LIST에 적절한 위치에 삽입한다.
+	LIST는 LESS 함수와 보조 데이터 AUX를 기준으로 정렬되어 있어야 한다.
+	이 함수는 LIST에 들어 있는 요소 수에 대해 **평균적으로 O(n)**의 시간 복잡도로 동작한다.  */
 void
 list_insert_ordered (struct list *list, struct list_elem *elem,
 		list_less_func *less, void *aux) {

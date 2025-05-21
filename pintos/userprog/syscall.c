@@ -7,9 +7,11 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "filesys/file.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+
 
 /* System call.
  *
@@ -41,6 +43,38 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
-	printf ("system call!\n");
-	thread_exit ();
+	int syscall_num = f->R.rax; //인자 다 받아오고.
+	uint64_t arg0 = f->R.rdi;
+	uint64_t arg1 = f->R.rsi;
+	uint64_t arg2 = f->R.rdx;
+	uint64_t arg3 =	f->R.r10;
+	uint64_t arg4 = f->R.r8;
+	uint64_t arg5 = f->R.r9;
+	switch (syscall_num) {
+		case SYS_EXIT:
+		syscall_exit((int) arg0);
+		break;
+		case SYS_WRITE:
+		f->R.rax = syscall_write((int) arg0,(void *) arg1, (unsigned) arg2);
+		break;
+  	}
+	// printf ("system call!\n");
+	// thread_exit ();
 }
+int syscall_exit(int status){
+	struct thread *cur = thread_current(); //프로세스의 커널 스레드.
+    cur->exit_status = status; // 부모에게 전달할 종료 상태
+    //process_exit();            // 종료 처리
+    thread_exit(); 
+}
+
+int syscall_write(int fd,void * buffer, unsigned size){
+	
+	//fd1 -> stdout ->  FDT -> innode table->dev/tty에 출력
+	if (fd == 1) {  // STDOUT
+        putbuf(buffer, size);
+        return size;
+    }
+	return -1;
+}
+

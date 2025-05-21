@@ -92,6 +92,7 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 	int init_priority;  //도네이션 받기전 기본 우선순위
+	int exit_status; //종료 상태.-> project2 
 	int64_t wake_ticks;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -101,7 +102,7 @@ struct thread {
 
 
 #ifdef USERPROG
-	/* Owned by userprog/process.c. */
+	/* Owned by userprog/process.c. */ 
 	uint64_t *pml4;                     /* Page map level 4 */
 #endif
 #ifdef VM

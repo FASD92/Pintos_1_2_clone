@@ -34,7 +34,8 @@
 /* Kernel virtual address start */
 #define KERN_BASE LOADER_KERN_BASE
 
-/* User stack start */
+/* 유저 스택의 시작 주소
+	User stack start */
 #define USER_STACK 0x47480000
 
 /* Returns true if VADDR is a user virtual address. */
