@@ -25,6 +25,7 @@
         "system_error": "c",
         "utility": "c",
         "*.inc": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "vaddr.h": "c"
     }
 }

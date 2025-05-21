@@ -51,14 +51,14 @@ process_create_initd (const char *file_name) {
 	tid_t tid;
 	/*
 	file_name에서 프로세스 이름 추출할 포인터 변수 선언
-	const인 file_name을 strtok_r()로 파싱하면
+	const(읽기 전용)인 file_name을 strtok_r()로 파싱하면
 	file_name의 원본 데이터가 파괴됨 -> UB
 
 	그래서 새로 한 페이지를 할당 받고
 	file_name을 안전하게 복사하고
 	그 변수를 파싱해서 저장해야 한다
 
-	실행할 프로그램 이름의 길이는 매번 다를 수 있으니 포인터로 선언해야 한다.
+	실행할 프로그램 이름의 길이는 동적이므로 포인터로 선언해야 한다.
 	왜냐면 *program_name은 할당된 메모리를 가리킬테니까
 
 	또한 palloc_get_page()로 힙 메모리에 할당 받으니까,
@@ -85,6 +85,14 @@ process_create_initd (const char *file_name) {
 	program_name = palloc_get_page (0);
 	strlcpy (program_name, file_name, PGSIZE);
 	
+	/* 
+	program_name은 문자열(char 배열)의 시작 주소를 담고 있다
+	palloc으로 동적 메모리(한 페이지)를 할당, 즉 어디를 가리킬지 지정하고
+	그 메모리 공간에 file_name을 복사하고,
+	그 중 첫 번째 토큰(공백 전까지 문자열)을 strtok_r()로 파싱하여 program_name이 가리키게 한다.
+	즉, program_name은 실행할 파일 이름("args-single" 등)을 가리키는 문자열 포인터가 된다
+	즉, argv[0]이다!
+	*/
 	char *program_name = strtok_r(program_name, " ", &next_ptr);
 
 	/* file_name을 실행하기 위한 새 스레드 생성

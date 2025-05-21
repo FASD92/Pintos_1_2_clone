@@ -237,7 +237,9 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
+	
 	preemption_priority();
+
 	return tid;
 }
 
@@ -480,6 +482,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->priority = priority;
 	t->init_priority = priority;
 	t->magic = THREAD_MAGIC;
+	
 	list_init (&t->donations);
 }
 
