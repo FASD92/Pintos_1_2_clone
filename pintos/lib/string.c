@@ -1,8 +1,12 @@
 #include <string.h>
 #include <debug.h>
 
-/* Copies SIZE bytes from SRC to DST, which must not overlap.
-   Returns DST. */
+/* SRC에서 DST만큼 SIZE byte만큼 복사한다.
+	SRC와 DST는 겹쳐서는 안 된다.
+	DST를 반환한다
+	
+	Copies SIZE bytes from SRC to DST, which must not overlap.
+	Returns DST. */
 void *
 memcpy (void *dst_, const void *src_, size_t size) {
 	unsigned char *dst = dst_;
@@ -182,7 +186,37 @@ strstr (const char *haystack, const char *needle) {
 	return NULL;
 }
 
-/* Breaks a string into tokens separated by DELIMITERS.  The
+/* 
+   문자열을 DELIMITERS로 구분된 토큰들로 분할합니다.
+   첫 번째 호출 시 S는 토큰화할 문자열이어야 하며,
+   이후 호출에서는 반드시 널 포인터여야 합니다.
+   SAVE_PTR은 토크나이저의 위치를 추적하는 데 사용되는 `char *` 변수의 주소입니다.
+   매번 반환값은 문자열 내 다음 토큰이거나, 토큰이 남아 있지 않으면 널 포인터입니다.
+
+   이 함수는 여러 개의 인접한 구분자를 단일 구분자로 처리합니다.  
+   반환된 토큰은 절대 길이가 0이 아닙니다.  
+   DELIMITERS는 동일한 문자열 내에서 호출마다 변경될 수 있습니다.  
+
+   strtok_r()은 문자열 S를 수정하여 구분자를 널 바이트로 변경합니다.  
+   따라서 S는 수정 가능한 문자열이어야 합니다.  
+   특히, 문자열 리터럴은 C에서 수정할 수 없습니다 (하위 호환성을 위해 `const`로 선언되지 않았더라도).  
+
+   사용 예시:  
+
+   char s[] = " String to tokenize. ";  
+   char *token, *save_ptr;  
+
+   for (token = strtok_r (s, " ", &save_ptr); token != NULL;  
+        token = strtok_r (NULL, " ", &save_ptr))  
+     printf ("'%s'\n", token);  
+
+   출력 결과:  
+
+   'String'  
+   'to'  
+   'tokenize.'
+   
+   Breaks a string into tokens separated by DELIMITERS.  The
    first time this function is called, S should be the string to
    tokenize, and in subsequent calls it must be a null pointer.
    SAVE_PTR is the address of a `char *' variable used to keep

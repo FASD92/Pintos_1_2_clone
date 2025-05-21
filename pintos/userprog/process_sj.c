@@ -23,7 +23,7 @@
 #endif
 
 static void process_cleanup (void);
-static bool load (const char *file_name, struct intr_frame *if_,char**argv,int argc);
+static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
 void argument_passing(char**argv,int argc,struct intr_frame *if_);
@@ -33,75 +33,39 @@ process_init (void) {
 	struct thread *current = thread_current ();
 }
 
-/*  From run_task in init.c
-
-	FILE_NAME"에서 로드된 "initd"라는 첫 번째 유저랜드 프로그램을 시작합니다.
-	새로 생성된 스레드는 process_create_initd()가 반환되기 전에 스케줄되어 실행되거나, 심지어 종료될 수도 있습니다.
-	initd의 스레드 ID를 반환하며, 스레드를 생성할 수 없을 경우 TID_ERROR를 반환합니다.
-	이 함수는 반드시 한 번만 호출되어야 합니다.
-	
- *  Starts the first userland program, called "initd", loaded from FILE_NAME.
- *  The new thread may be scheduled (and may even exit)
- *  before process_create_initd() returns. Returns the initd's
- *  thread id, or TID_ERROR if the thread cannot be created.
- *  Notice that THIS SHOULD BE CALLED ONCE. */
+/* Starts the first userland program, called "initd", loaded from FILE_NAME.
+ * The new thread may be scheduled (and may even exit)
+ * before process_create_initd() returns. Returns the initd's
+ * thread id, or TID_ERROR if the thread cannot be created.
+ * Notice that THIS SHOULD BE CALLED ONCE. */
+// "FILE_NAME"에서 로드된 "initd"라는 첫 번째 유저랜드 프로그램을 시작합니다.
+// 새로 생성된 스레드는 process_create_initd()가 반환되기 전에 스케줄되어 실행되거나, 심지어 종료될 수도 있습니다.
+// initd의 스레드 ID를 반환하며, 스레드를 생성할 수 없을 경우 TID_ERROR를 반환합니다.
+// 이 함수는 반드시 한 번만 호출되어야 합니다.
 tid_t
 process_create_initd (const char *file_name) {
 	char *fn_copy;
 	tid_t tid;
-	/*
-	file_name에서 프로세스 이름 추출할 포인터 변수 선언
-	const인 file_name을 strtok_r()로 파싱하면
-	file_name의 원본 데이터가 파괴됨 -> UB
 
-	그래서 새로 한 페이지를 할당 받고
-	file_name을 안전하게 복사하고
-	그 변수를 파싱해서 저장해야 한다
-
-	실행할 프로그램 이름의 길이는 매번 다를 수 있으니 포인터로 선언해야 한다.
-	왜냐면 *program_name은 할당된 메모리를 가리킬테니까
-
-	또한 palloc_get_page()로 힙 메모리에 할당 받으니까,
-	이건 반드시 포인터로만 접근 가능하기 때문에
-	무조건 포인터 변수로 선언해야 했다
-	*/
-	char *program_name;
-	char *next_ptr;
-	// printf("create initd 진입\n");
-
-	/* FILE_NAME의 복사본을 만듭니다.
-	그렇지 않으면 호출자와 load() 함수 사이에 경쟁 상태(race condition)가 발생할 수 있습니다.
-	Make a copy of FILE_NAME.
-	Otherwise there's a race between the caller and load(). */
-
-	/* 동적 페이지 1개 할당 */
-	fn_copy = palloc_get_page (0); 
-	if (fn_copy == NULL){
+	/* Make a copy of FILE_NAME.
+	 * Otherwise there's a race between the caller and load(). */
+// 	FILE_NAME의 복사본을 만듭니다.
+// 그렇지 않으면 **호출자와 load() 함수 사이에 경쟁 상태(race condition)**가 발생할 수 있습니다.
+	fn_copy = palloc_get_page (0); // 한 페이지 할당
+	if (fn_copy == NULL)
 		return TID_ERROR;
-	}
 	strlcpy (fn_copy, file_name, PGSIZE);
 
-	/* 동적 페이지 1개 할당 */
-	program_name = palloc_get_page (0);
-	strlcpy (program_name, file_name, PGSIZE);
-	
-	char *program_name = strtok_r(program_name, " ", &next_ptr);
-
-	/* file_name을 실행하기 위한 새 스레드 생성
-	Create a new thread to execute FILE_NAME. */
-	tid = thread_create (program_name, PRI_DEFAULT, initd, fn_copy);
+	/* Create a new thread to execute FILE_NAME. */
+	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
-	// printf("create initd 완료\n");
-	// thread_yield();//일단 양보
 	return tid;
 }
 
-/* 첫 유저 프로세스를 가동하는 스레드 함수
-	A thread function that launches first user process. */
+/* A thread function that launches first user process. */
 static void
 initd (void *f_name) {
-	// printf("initd start!\n");
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
@@ -204,7 +168,6 @@ error:
  * Returns -1 on fail. */
 int
 process_exec (void *f_name) {
-	// printf("process exec 진입");
 	char *file_name = f_name;
 	bool success;
 	// char *save_ptr;
@@ -214,8 +177,8 @@ process_exec (void *f_name) {
 	int argc = 0;
 
 	//문자열 파싱
-	argv[0] = strtok_r(file_name," ",&next_ptr);
-	while(argv[argc]!=NULL){
+	argv[0] = strtok_r(file_name, " " ,&next_ptr);
+	while(argv[argc] != NULL){
 		argc++;
 		argv[argc] = strtok_r(NULL," ",&next_ptr);
 	}
@@ -233,22 +196,14 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if,argv,argc);
-
-	argument_passing(argv, argc, &_if);
+	success = load (file_name, &_if);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
-	if (!success){
-		printf("load 실패");
+	if (!success)
 		return -1;
-	}
-		
-
+	argument_passing(argv,argc,&_if);
 	/* Start switched process. */
-	// printf("hex_dump 진입\n");
-	// hex_dump(_if.rsp, _if.rsp, USER_STACK-_if.rsp, true);
-	// printf("do_iret 진입\n");
 	do_iret (&_if);
 	NOT_REACHED ();
 }
@@ -265,10 +220,7 @@ process_exec (void *f_name) {
  * does nothing. */
 int
 process_wait (tid_t child_tid UNUSED) {
-	for (int i = 0; i < 400000000; i++) {
-		asm volatile ("");
-	}
-	//while(1) {}
+	while(1) {}
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
@@ -389,8 +341,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_,char**argv,int argc) {
-	// printf("load 진입\n");
+load (const char *file_name, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -402,15 +353,10 @@ load (const char *file_name, struct intr_frame *if_,char**argv,int argc) {
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
-	// printf("process_activate 진입\n");
 	process_activate (thread_current ());
-		// printf("process_activate 끝\n");
 	//여기서 파싱
 	/* Open executable file. */
-	// printf("filesys_open 진입\n");
-	// printf("%s",file_name);
 	file = filesys_open (file_name);
-	// printf("filesys_open 완료\n");
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
@@ -487,18 +433,17 @@ load (const char *file_name, struct intr_frame *if_,char**argv,int argc) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-	// printf("argument passing 진입");
+
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	 
 	// argument_passing(file_name,if_);
 
 	success = true;
-	
+
 done:
 	/* We arrive here whether the load is successful or not. */
 	file_close (file);
-	// printf("load 끝\n");
 	return success;
 }
 
@@ -716,36 +661,50 @@ setup_stack (struct intr_frame *if_) {
 #endif /* VM */
 
 
-void argument_passing(char**argv,int argc,struct intr_frame *if_){
-	char *arg_ptrs[32];
-	void *rsp = if_->rsp;
+void argument_passing(char **argv, int argc, struct intr_frame *if_){
+	// char *next_ptr;
+	// char *argv[128];
+	char *arg_ptrs[128]; 
+	// int argc = 0;
+	// //문자열 파싱
+	// argv[0] = strtok_r(file_name," ",&next_ptr);
+	// while(argv[argc]!=NULL){
+	// 	argc++;
+	// 	argv[argc] = strtok_r(NULL," ",&next_ptr);
+	// }
+	// argv[argc] = NULL; // 유닉스같은데선 문자열 인자(argv) 끝났다는걸 알리기 위해 NULL 넣어줌
 
-	for(int i = argc -1; i>=0; i--){//User Stack 시작점부터 아래로 채우기
-		size_t len=strlen(argv[i])+1;//\0 종료문자 포함
+	void *rsp = USER_STACK;
+
+	for(int i = argc -1; i >= 0; i--){      //User Stack 시작점부터 아래로 채우기
+		size_t len = strlen(argv[i])+1;     //\0 종료문자 포함
 		rsp -= len;
-		memcpy(rsp,argv[i],len);
-		arg_ptrs[i] = rsp;	/* 문자열 저장주소 저장 */
+		memcpy(rsp, argv[i], len);
+		arg_ptrs[i] = rsp;                  //문자열 저장주소 저장.
 	}
 
-	/* 정렬을 위해 rsp 위치에서 8 나눈 나머지 값만큼 빼고 그 길이만큼 그 위치의 내용물을 0으로 초기화*/
-	uint8_t align = (uint8_t)rsp%8;
+	//정렬을 위해 현재 rsp위치에서 8 나눈 나머지값만큼 -하고 그 길이만큼 그 위치의 내용물 0으로 초기화
+
+	uint8_t align = (uint8_t)rsp % 8;
+
 	if(align){
-		rsp-=align;
-		memset(rsp,0,align);
+		rsp -= align;
+		memset(rsp, 0 ,align);
 	}
+	
 
-	//아래부터  저장한  arg_ptrs 주소 하나씩.
+	//아래부터 저장한 arg_ptrs 주소 하나씩.
 	rsp -= 8;
 	*(char**)rsp = NULL;
-	for(int i = argc -1; i>=0; i--){//NULL(argv(argc)) 아래부터 아래로 채우기
-		rsp -= 8;//정렬단위
-		memcpy(rsp, &arg_ptrs[i], sizeof(char*));
+	for(int i = argc -1;i>=0;i--){		//NULL(argv(argc)) 아래부터 아래로 채우기
+		rsp-=8;							//정렬단위
+		memcpy(rsp,&arg_ptrs[i],sizeof(char*));
 	}
 
-	if_->R.rsi = (uint64_t)rsp;//rsi에 argv 배열주소 저장
-	if_->R.rdi = argc;//rdi에 argc 저장.
-	
-	rsp -= sizeof(void *);
+	if_->R.rsi = (uint64_t)rsp;			//rsi에 argv 배열주소 저장
+	if_->R.rdi = argc;					//rdi에 argc 저장.
+	rsp-=sizeof(void *);
 	memset(rsp, 0, sizeof(char*)); 
 	if_->rsp = rsp;
+
 }

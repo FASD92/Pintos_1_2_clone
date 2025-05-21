@@ -16,7 +16,7 @@
 #include "userprog/process.h"
 #endif
 
-//작은값 매크로
+/* 작은값 매크로 */
 #define min(x, y) (x) < (y) ? (x) : (y)
 
 /* Random value for struct thread's `magic' member.
@@ -31,7 +31,8 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-// 레디리스트와 함께 슬립 리스트 define
+
+/* 레디리스트와 함께 슬립 리스트 define */
 static struct list sleep_list;
 
 /* Idle thread. */
@@ -87,7 +88,16 @@ void refresh_priority(struct thread *t);
  * Read the CPU's stack pointer `rsp', and then round that
  * down to the start of a page.  Since `struct thread' is
  * always at the beginning of a page and the stack pointer is
- * somewhere in the middle, this locates the curent thread. */
+ * somewhere in the middle, this locates the curent thread.
+  
+  실행중인 스레드를 반환함!!!!!!!!!!!!!!!!!!!!!!!!!
+  CPU의 스택 포인터인 rsp를 읽고, 그걸 페이지 단위로 rsp를 '내림'한다.
+  'struct thread'는 항상 한 페이지의 시작 부분에 위치하고(4KB 페이지의 0번 주소라 생각해봐)
+  스택 포인터는 페이지 그 페이지 중간 어딘가에 있기 때문에
+  이렇게 하면 현재 스레드의 구조체를 찾아낼 수 있다.
+  pg_round_down -> 페이지 단위로 '내림'
+  rrsp는 현재 CPU의 스택 포인터(%rsp) 값을 읽어서 반환하는 헬퍼 함수
+  이렇게 해서 받은 주소를 (struct thread *)형으로 캐스팅해서 반환	*/
 #define running_thread() ((struct thread *) (pg_round_down (rrsp ())))
 
 
@@ -125,11 +135,12 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
-	list_init (&sleep_list);//슬립리스트 초기화
+	list_init (&sleep_list); /* 슬립리스트 초기화 */
 	list_init (&destruction_req);
 
-	/* Set up a thread structure for the running thread. */
-	initial_thread = running_thread ();
+	/* Set up a thread structure for the running thread.
+	실행중인 스레드에 대한 스레드 구조 설정 */
+	initial_thread = running_thread (); /* 현재 실행중인 스레드를 저장 */
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
@@ -152,7 +163,9 @@ thread_start (void) {
 }
 
 /* Called by the timer interrupt handler at each timer tick.
-   Thus, this function runs in an external interrupt context. */
+   Thus, this function runs in an external interrupt context.
+    타이머 인터럽트 핸들러에 의해 매 타이머 틱마다 호출된다
+	따라서 이 함수는 외부 인터럽트 컨텍스트에서 실행된다 */
 void
 thread_tick (void) {
 	struct thread *t = thread_current ();
@@ -242,6 +255,16 @@ thread_block (void) {
 	schedule ();
 }
 
+
+/* 중요도 순으로 내림차순 */
+bool list_DECS_priority(const struct list_elem *a,
+                        const struct list_elem *b,
+                        void *aux){
+	struct thread *threada =list_entry(a, struct thread, elem);
+    struct thread *threadb =list_entry(b, struct thread, elem);
+	return threada->priority > threadb->priority;	// threada의 우선순위가 threadb의 우선순위보다 크면 True를 반환
+}
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -249,27 +272,16 @@ thread_block (void) {
    This function does not preempt the running thread.  This can
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
-   update other data. */
+   update other data.
+   
+   blocked된 스레드 t를 ready-to-run 상태로 전환한다
+   t가 blocked되지 않은 상태에서 이 함수를 호출하면 에러가 발생한다
+   (실행 중인 스레드를 준비 상태로 만들려면 thread_yield()를 사용하세요)
 
-   /* 차단된(blocked) 상태의 스레드 T를 실행 준비 상태(ready-to-run)로 전환합니다.
-
-   만약 T가 차단된 상태가 아니라면 이는 오류입니다.  
-   (실행 중인 스레드를 준비 상태로 만들고 싶다면 thread_yield()를 사용하세요.)
-
-   이 함수는 현재 실행 중인 스레드를 선점(preempt)하지 않습니다.  
-   이는 중요한데, 호출자가 인터럽트를 직접 비활성화한 경우  
-   스레드를 unblock한 뒤 다른 데이터를 원자적으로 업데이트할 수 있을 것이라 기대할 수 있기 때문입니다.
-*/
-
-
-bool list_DECS_priority(const struct list_elem *a,
-                             const struct list_elem *b,
-                             void *aux){
-	struct thread *threada =list_entry(a,struct thread,elem);
-    struct thread *threadb =list_entry(b,struct thread,elem);
-	return threada->priority > threadb->priority;
-	//중요도 순으로 내림차순 완료.
-}
+   이 함수는 실행중인 스레드를 선점하지 않는다.
+   이는 중요할 수 있는데, 호출자가 직접 인터럽트를 비활성화한 경우, 원자적 방식으로
+   스레드 차단 해제와 다른 데이터 업데이트를 수행할 수 있을 것으로 기대하기 때문
+   */
 void
 thread_unblock (struct thread *t) {
 	enum intr_level old_level;
@@ -279,11 +291,8 @@ thread_unblock (struct thread *t) {
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
 	t->status = THREAD_READY;
-	list_insert_ordered (&ready_list,&t->elem,list_DECS_priority,NULL);
-	//현재 쓰레드 검사
+	list_insert_ordered (&ready_list, &t->elem, list_DECS_priority, NULL);	/* 현재 스레드 검사 */
 
-
-	
 	intr_set_level (old_level);
 }
 
@@ -335,33 +344,37 @@ thread_exit (void) {
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
-   may be scheduled again immediately at the scheduler's whim. */
+   may be scheduled again immediately at the scheduler's whim.
+
+   CPU를 양보함. 현재 스레드는 슬립 상태로 전환되지 않으며 스케줄러의 판단에 따라
+   즉시 다시 스케줄될 수 있음. */
 void
 thread_yield (void) {
-	struct thread *curr = thread_current ();//현재 스레드 반환
-	enum intr_level old_level;
+	struct thread *curr = thread_current ();	/* 현재 스레드 반환 */
+	enum intr_level old_level;	/* 기존 인터럽트 상태를 저장할 변수 */
 
-	ASSERT (!intr_context ());
+	ASSERT (!intr_context ());	/* 외부 인터럽트 진행이 아닐 때? */
 
-	old_level = intr_disable ();//인터럽트 끄고 이전 인터럽트 상태 반환
-	if (curr != idle_thread)
+	old_level = intr_disable ();	/* 인터럽트 끄고 이전 인터럽트 상태 반환 */
+	if (curr != idle_thread)	/* 현재 스레드가 idel이 아닐 때 */
 		list_insert_ordered (&ready_list,&curr->elem,list_DECS_priority,NULL);
 	do_schedule (THREAD_READY);
-	intr_set_level (old_level);//인터럽트 상태를 전달된 이자를 통해 바꾸고, 이전 인터럽트 상태를 반환
+	intr_set_level (old_level);	/* 인터럽트 상태를, 전달된 인자를 통해 바꾸고, 이전 인터럽트 상태를 반환 */
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	struct thread *curr;
-	//현재 쓰레드 검사
+	/* 현재 쓰레드 검사 */
 	curr=thread_current();
+	
 	enum intr_level old_level = intr_disable();
 	curr->init_priority = new_priority;
-	refresh_priority(curr);
-    if (!list_empty(&ready_list)) {// 레디리스트 맨앞에 있는 스레드와 비교.
-
-		
+	refresh_priority(curr);	/* 석주's 함수. */
+	
+	/* 레디리스트 맨앞에 있는 스레드와 비교. */
+    if (!intr_context() && !list_empty(&ready_list)){
         struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
         if (front->priority > curr->priority && curr != idle_thread)
             thread_yield();
@@ -414,8 +427,7 @@ thread_get_recent_cpu (void) {
 static void
 idle (void *idle_started_ UNUSED) {
 	struct semaphore *idle_started = idle_started_;
-
-	idle_thread = thread_current ();//thread_start를 위해 자원 할당, 스케줄러를 시작시키기 위함
+	idle_thread = thread_current ();	/* thread_start를 위해 자원 할당, 스케줄러를 시작시키기 위함 */
 	sema_up (idle_started);
 
 	for (;;) {
@@ -436,9 +448,9 @@ idle (void *idle_started_ UNUSED) {
 		   See [IA32-v2a] "HLT", [IA32-v2b] "STI", and [IA32-v3a]
 		   7.11.1 "HLT Instruction". */
 		asm volatile ("sti; hlt" : : : "memory");
-		//인터럽트를 hlt까지 잠시 멈춤. hlt는cpu를 대기상태로 전환
-		//키보드나 타이머 인터럽트 마다 깸.
-		//->ready list에 아무것도 없으면 계속 루프돌면서 cpu 대기돌리고 스케줄링 타이밍마다 run-> ready-> cpu 대기 -> 스케줄러가 idle 실행(run)
+		/* 인터럽트를 hlt까지 잠시 멈춤. hlt는 cpu를 대기상태로 전환
+		   키보드나 타이머 인터럽트 마다 깸.
+		->ready list에 아무것도 없으면 계속 루프돌면서 cpu 대기돌리고 스케줄링 타이밍마다 run-> ready-> cpu 대기 -> 스케줄러가 idle 실행(run) */
 	}
 }
 
@@ -659,13 +671,13 @@ allocate_tid (void) {
 
 	return tid;
 }
+/* wake 틱 순으로 오름차순 완료 */
 bool list_ASC_wake_ticks(const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux){
 	struct thread *threada =list_entry(a,struct thread,elem);
     struct thread *threadb =list_entry(b,struct thread,elem);
 	return threada->wake_ticks < threadb->wake_ticks;
-	//wake 틱 순으로 오름차순 완료.
 }
 void thread_sleep(int64_t wake_ticks){
 	struct thread *curr = running_thread ();
@@ -709,21 +721,23 @@ thread_wake_up(void){
 	}
 	least_sleep_ticks = next_least;
 	intr_set_level (old_level);
-
 }
 
 
 //선점 함수.
 void preemption_priority(void) {
-	if (!list_empty(&ready_list) && thread_current()->priority
+	if (!intr_context() && !list_empty(&ready_list) && thread_current()->priority
 	< list_entry(list_front(&ready_list), struct thread, elem)->priority) {
 		thread_yield();
 	}
 }
 
-void refresh_priority(struct thread *t){//우선순위 갱신 -> 어차피 우선순위 순으로 놔서 순회 안돌아도 됨.
-    t->priority = t->init_priority;
+/* 우선순위 갱신 -> 어차피 우선순위 순으로 놔서 순회 안돌아도 됨.*/
+void refresh_priority(struct thread *t){
+    t->priority = t->init_priority;	/* 스레드의 현재 우선순위를 donation 받기 전 기본 우선순위로 변경 */
+
     struct list_elem *e;
+	
 	if (!list_empty(&t->donations)) {
 		struct thread *donor = list_entry(list_begin(&t->donations), struct thread, d_elem);
 		if (donor->priority > t->priority)

@@ -252,7 +252,8 @@ run_task (char **argv) {
 	printf ("Execution of '%s' complete.\n", task);
 }
 
-/* Executes all of the actions specified in ARGV[]
+/*	called by main in init.c
+	Executes all of the actions specified in ARGV[]
    up to the null pointer sentinel. */
 static void
 run_actions (char **argv) {

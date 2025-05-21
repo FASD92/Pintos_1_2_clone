@@ -110,7 +110,8 @@ static void pic_end_of_interrupt (int irq);
 /* Interrupt handlers. */
 void intr_handler (struct intr_frame *args);
 
-/* Returns the current interrupt status. */
+/* Returns the current interrupt status.
+	인터럽트 OFF일 때 0, ON일 때 1 */
 enum intr_level
 intr_get_level (void) {
 	uint64_t flags;
@@ -118,7 +119,14 @@ intr_get_level (void) {
 	/* Push the flags register on the processor stack, then pop the
 	   value off the stack into `flags'.  See [IA32-v2b] "PUSHF"
 	   and "POP" and [IA32-v3a] 5.8.1 "Masking Maskable Hardware
-	   Interrupts". */
+	   Interrupts".
+	   
+	   flag 레지스터 값을 프로세서 스택에 푸시(PUSH)한 다음,
+		그 값을 스택에서 꺼내(POP) flags 변수에 저장한다.
+		관련 내용은 [IA32-v2b]의 “PUSHF”와 “POP”,
+		그리고 [IA32-v3a]의 5.8.1절 “마스크 가능한 하드웨어 인터럽트의 마스킹 방법”을 참고
+		asm은 어셈블리 라인을 시작한다
+		volatile은 컴파일러에게 이 라인을 최적화하지 말라고 선언하는 것 */
 	asm volatile ("pushfq; popq %0" : "=g" (flags));
 
 	return flags & FLAG_IF ? INTR_ON : INTR_OFF;
@@ -131,7 +139,10 @@ intr_set_level (enum intr_level level) {
 	return level == INTR_ON ? intr_enable () : intr_disable ();
 }
 
-/* Enables interrupts and returns the previous interrupt status. */
+/* Enables interrupts and returns the previous interrupt status.
+
+	LEVEL에 따라 구분된 인터럽트를 활성화 또는 비활성화 하고
+	이전 인터럽트 상태를 반환한다 */
 enum intr_level
 intr_enable (void) {
 	enum intr_level old_level = intr_get_level ();
@@ -146,7 +157,8 @@ intr_enable (void) {
 	return old_level;
 }
 
-/* Disables interrupts and returns the previous interrupt status. */
+/* Disables interrupts and returns the previous interrupt status.
+인터럽트를 비활성화하고 old_level에 이전 인터럽트 상태를 저장한다. */
 enum intr_level
 intr_disable (void) {
 	enum intr_level old_level = intr_get_level ();

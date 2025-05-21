@@ -17,7 +17,8 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
-/* Number of timer ticks since OS booted. */
+/* Number of timer ticks since OS booted.
+OS 부팅 후 타이머 틱의 횟수 */
 static int64_t ticks;
 
 /* 전역 최소 슬립틱. */
@@ -73,7 +74,8 @@ timer_calibrate (void) {
 	printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
 }
 
-/* Returns the number of timer ticks since the OS booted. */
+/* Returns the number of timer ticks since the OS booted.
+OS 부팅 이후 타이머 틱의 누적 횟수를 반환한다 */
 int64_t
 timer_ticks (void) {
 	enum intr_level old_level = intr_disable ();
@@ -90,19 +92,31 @@ timer_elapsed (int64_t then) {
 	return timer_ticks () - then;
 }
 
-/* Suspends execution for approximately TICKS timer ticks. */
+/* Suspends execution for approximately TICKS timer ticks.
+약 TICKS동안 실행(스레드?)를 멈춘다
+1. 인터럽트 상태 비활성화로 변경
+2. 현재 스레드의 깨어날 시간 설정
+3. sleep_list에 정렬해서 삽입
+4. 스레드를 blocked 처리하고 CPU에서 내려버림
+6. 인터럽트 상태 복구 -> timer_ticks 레퍼런스 함 */
 void
 timer_sleep (int64_t ticks) {
+	/* 
+	인터럽트를 끄고 키는 부분은 timer_ticks 함수에서 레퍼런스 했다
+	변수명을 prev_state로 바꾸고 싶지만...
+	*/
 
 	// int64_t start = timer_ticks ();
 
-	//일어날 시간 저장, 커널에서 슬립리스트 관리하게 해야댐.
+	// 스레드가 일어날 시간 저장, 커널에서 sleep_list를 관리하게 해야한다.
 	int64_t wake_ticks = timer_ticks () + ticks;
-// -> 레디리스트에서 나올때마다 while문 조건 체크하면서 tick보다 해당 sleep 시작 tick이 작으면 thread_yield(양보) 실행
-//-> 바쁘게 문맥교환 해가면서 waiting 하는 busy wait 상태
 	ASSERT (intr_get_level () == INTR_ON);
-	// while (timer_elapsed (start) < ticks)
-	// 	thread_yield ();
+	/*
+	레디리스트에서 나올때마다 while문 조건 체크하면서 tick보다 해당 sleep 시작 tick이 작으면 thread_yield(양보) 실행
+	바쁘게 문맥교환 해가면서 waiting 하는 busy wait 상태
+	while (timer_elapsed (start) < ticks)
+		thread_yield ();
+	*/
 	thread_sleep(wake_ticks);
 } 
 
@@ -135,12 +149,12 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
-	//커널이 핸들링함.
-	//글로벌틱 체크하고 슬립리스트 확인
+
+/* 커널이 핸들링함
+글로벌틱 체크하고 슬립리스트 확인	*/
 	if (ticks >= least_sleep_ticks){
 		thread_wake_up();
 	}
-		
 }
 
 

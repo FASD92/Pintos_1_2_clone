@@ -79,6 +79,68 @@
  * tail, that is, a real list element.  An empty list does
  * not have any interior elements.*/
 
+/* 이중 연결 리스트.
+ *
+ * 이 이중 연결 리스트 구현은 동적으로 메모리를 할당할 필요가 없습니다.
+ * 대신, 리스트 요소가 될 수 있는 각 구조체는 내부에 struct list_elem 멤버를 포함해야 합니다.
+ * 모든 리스트 함수들은 이 struct list_elem에 대해 동작합니다.
+ * list_entry 매크로는 struct list_elem 포인터를 포함 구조체의 포인터로 변환할 수 있도록 해줍니다.
+ *
+ * 예를 들어, struct foo 타입의 리스트가 필요하다고 가정합시다.
+ * 그러면 struct foo는 다음과 같이 struct list_elem 멤버를 포함해야 합니다:
+ *
+ * struct foo {
+ *   struct list_elem elem;
+ *   int bar;
+ *   ...다른 멤버들...
+ * };
+ *
+ * 그리고 struct foo의 리스트는 다음과 같이 선언 및 초기화할 수 있습니다:
+ *
+ * struct list foo_list;
+ * list_init (&foo_list);
+ *
+ * 리스트를 순회할 때는 list_elem 포인터를 다시 포함 구조체로 변환해야 하는 경우가 많습니다.
+ * 아래는 foo_list를 순회하면서 struct foo 포인터로 접근하는 예시입니다:
+ *
+ * struct list_elem *e;
+ *
+ * for (e = list_begin (&foo_list); e != list_end (&foo_list);
+ *      e = list_next (e)) {
+ *   struct foo *f = list_entry (e, struct foo, elem);
+ *   ...f에 대해 무언가 수행...
+ * }
+ *
+ * list의 실제 사용 예시는 소스 코드 전체에서 찾아볼 수 있습니다.
+ * 예를 들면 malloc.c, palloc.c, thread.c 등에서 사용됩니다.
+ *
+ * 이 리스트 인터페이스는 C++ STL의 list<> 템플릿에서 영감을 받았습니다.
+ * list<>에 익숙하다면 쉽게 사용할 수 있을 것입니다.
+ * 다만, 이 리스트는 타입 검사(type checking)를 전혀 하지 않으며,
+ * 다른 형태의 정확성 검사도 거의 하지 않습니다.
+ * 실수하게 되면, 그것은 치명적인 버그로 이어질 수 있습니다.
+ *
+ * 리스트 용어 요약:
+ *
+ * - "front": 리스트의 첫 번째 요소. 리스트가 비어 있을 경우 정의되지 않음. list_front()가 반환.
+ *
+ * - "back": 리스트의 마지막 요소. 리스트가 비어 있을 경우 정의되지 않음. list_back()이 반환.
+ *
+ * - "tail": 리스트의 마지막 요소 바로 뒤에 위치한 요소. 리스트가 비어 있어도 항상 정의되어 있음.
+ *           list_end()가 반환. 리스트를 앞에서 뒤로 순회할 때 종료 지점으로 사용됨.
+ *
+ * - "beginning": 리스트가 비어 있지 않으면 front. 비어 있으면 tail. list_begin()이 반환.
+ *                리스트를 앞에서 뒤로 순회할 때 시작 지점으로 사용됨.
+ *
+ * - "head": 리스트의 첫 번째 요소 바로 앞에 위치한 요소. 리스트가 비어 있어도 항상 정의되어 있음.
+ *           list_rend()가 반환. 리스트를 뒤에서 앞으로 순회할 때 종료 지점으로 사용됨.
+ *
+ * - "reverse beginning": 리스트가 비어 있지 않으면 back. 비어 있으면 head.
+ *                         list_rbegin()이 반환. 리스트를 뒤에서 앞으로 순회할 때 시작 지점으로 사용됨.
+ *
+ * - "interior element": head나 tail이 아닌 리스트의 실제 요소. 리스트가 비어 있으면 내부 요소는 존재하지 않음.
+ */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -99,7 +161,11 @@ struct list {
    the structure that LIST_ELEM is embedded inside.  Supply the
    name of the outer structure STRUCT and the member name MEMBER
    of the list element.  See the big comment at the top of the
-   file for an example. */
+   file for an example.
+   
+   리스트 요소 LIST_ELEM의 포인터를 LIST_ELEM이 내장된 구조체의 포인터로 변환합니다.
+   외부 구조체 STRUCT의 이름과 리스트 요소의 멤버 이름 MEMBER를 지정해야 합니다.
+   예제는 파일 상단에 있는 상세 주석을 참조하십시오. */
 #define list_entry(LIST_ELEM, STRUCT, MEMBER)           \
 	((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
 		- offsetof (STRUCT, MEMBER.next)))
