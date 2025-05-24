@@ -18,6 +18,7 @@
 #include "threads/mmu.h"
 #include "threads/vaddr.h"
 #include "intrinsic.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -26,7 +27,9 @@ static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_,char**argv,int argc);
 static void initd (void *f_name);
 static void __do_fork (void *);
-void argument_passing(char**argv,int argc,struct intr_frame *if_);
+void argument_passing(char**argv, int argc, struct intr_frame *if_);
+int process_wait (tid_t child_tid);
+
 /* General process initializer for initd and other process. */
 static void
 process_init (void) {
@@ -93,7 +96,7 @@ process_create_initd (const char *file_name) {
 	즉, program_name은 실행할 파일 이름("args-single" 등)을 가리키는 문자열 포인터가 된다
 	즉, argv[0]이다!
 	*/
-	char *program_name = strtok_r(program_name, " ", &next_ptr);
+	program_name = strtok_r(program_name, " ", &next_ptr);
 
 	/* file_name을 실행하기 위한 새 스레드 생성
 	Create a new thread to execute FILE_NAME. */
@@ -222,8 +225,8 @@ process_exec (void *f_name) {
 	int argc = 0;
 
 	//문자열 파싱
-	argv[0] = strtok_r(file_name," ",&next_ptr);
-	while(argv[argc]!=NULL){
+	argv[0] = strtok_r(file_name, " " ,&next_ptr);
+	while(argv[argc]!= NULL){
 		argc++;
 		argv[argc] = strtok_r(NULL," ",&next_ptr);
 	}
@@ -246,23 +249,30 @@ process_exec (void *f_name) {
 	argument_passing(argv, argc, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
 	if (!success){
 		printf("load 실패");
 		return -1;
 	}
-		
 
 	/* Start switched process. */
 	// printf("hex_dump 진입\n");
 	// hex_dump(_if.rsp, _if.rsp, USER_STACK-_if.rsp, true);
 	// printf("do_iret 진입\n");
+	palloc_free_page (file_name);
 	do_iret (&_if);
 	NOT_REACHED ();
 }
 
 
-/* Waits for thread TID to die and returns its exit status.  If
+/* 스레드 TID가 종료될 때까지 기다리고 해당 스레드의 종료 상태를 반환합니다.
+ * 커널에 의해 종료된 경우(예: 예외로 인해 강제 종료) -1을 반환합니다.
+ * TID가 유효하지 않거나 호출 프로세스의 자식이 아니거나,
+ * 이미 해당 TID에 대해 process_wait()이 성공적으로 호출된 경우
+ * 대기 없이 즉시 -1을 반환합니다.
+ *
+ * 이 함수는 문제 2-2에서 구현될 예정입니다. 현재는 아무 동작도 하지 않습니다.
+ * 
+ * Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
  * exception), returns -1.  If TID is invalid or if it was not a
  * child of the calling process, or if process_wait() has already
@@ -272,27 +282,83 @@ process_exec (void *f_name) {
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) {
-	for (int i = 0; i < 400000000; i++) {
+process_wait (tid_t child_tid) {
+	struct thread *parent = thread_current();
+	struct list_elem *e;
+	struct child_info *ci = NULL;
+
+	for (e = list_begin(&parent->child_list); e != list_end(&parent->child_list);
+		e = list_next(e)) {
+			struct child_info *entry= list_entry(e, struct child_info, elem);
+			/* 리스트 내부 탐색 포인터인 entry의 값이 우리가 찾는 child_tid와 같을 경우*/
+			if (entry->child_tid == child_tid) {
+				ci = entry;
+				break;
+			}
+		}
+		
+	/* 리스트 순회했는데 child_tid에 해당하는 자식을 못 찾았을 경우*/
+	if (ci == NULL){
+		return -1;
+	}
+
+	/* 이미 한 번 wait한 자식이면 */
+	if (ci->is_waited == true){
+		return -1;
+	}
+	/* 아니라면 is_waited 필드를 true로 변경????????*/
+	else {
+		ci->is_waited = true;
+	}
+
+	/* 자식이 아직 종료되지 않았다면, 스땁 */
+	if (ci->has_exited == false) {
+		sema_down(&ci->wait_sema);
+	}
+
+	/* 자식 종료 상태 회수, 리스트에서 제거, 메모리 해제? */
+	int status = ci->exit_status;
+	list_remove(&ci->elem);
+	//palloc_free_page(ci);
+	return status;
+
+
+	/*for (int i = 0; i < 400000000; i++) {
 		asm volatile ("");
 	}
-	//while(1) {}
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
+	 * XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
+	 * XXX:       implementing the process_wait.
 	return -1;
+	*/
 }
 
 /* Exit the process. This function is called by thread_exit (). */
 void
 process_exit (void) {
 	struct thread *curr = thread_current ();
+	struct thread *parent = curr->parent;
+	if (parent != NULL) {
+		struct list_elem *e;
+		for (e = list_begin(&parent->child_list); e != list_end(&parent->child_list); 
+		e = list_next(e)) {
+			struct child_info *ci= list_entry(e, struct child_info, elem);
+
+			/* 현재 프로세스의 tid가 자식 프로세스의 tid와 일치하면*/
+			if (ci->child_tid == curr->tid){
+				ci->exit_status = curr->exit_status;	/* 자식의 exit_status를 업데이트하고*/
+				ci->has_exited = true;	/* 자식이 종료됐다는 걸 알려주고 */
+				sema_up(&ci->wait_sema);	/* 자식의 종료를 기다리는, BLOCK 상태인 부모를 깨움 */
+				break;
+			}
+		}
 	/* TODO: Your code goes here.
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	printf("%s: exit(%d)\n", curr->name, curr->exit_status);
 	process_cleanup ();
+}
 }
 
 /* Free the current process's resources. */
@@ -751,7 +817,7 @@ void argument_passing(char**argv,int argc,struct intr_frame *if_){
 	}
 
 	if_->R.rsi = (uint64_t)rsp;//rsi에 argv 배열주소 저장
-	if_->R.rdi = argc;//rdi에 argc 저장.
+	if_->R.rdi = argc;//rdi에 argc 저장
 	
 	rsp -= sizeof(void *);
 	memset(rsp, 0, sizeof(char*)); 

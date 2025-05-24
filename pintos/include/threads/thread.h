@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -91,15 +92,17 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
-	int init_priority;  //도네이션 받기전 기본 우선순위
-	int exit_status; //종료 상태.-> project2 
+	int init_priority;  				/* 도네이션 받기전 기본 우선순위 */
+	int exit_status; 					/* 종료 상태 -> project2 */ 
 	int64_t wake_ticks;
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	struct lock *wait_on_lock;//락 추적
-	struct list donations;//도네이션용 리스트
-	struct list_elem d_elem;//위 리스트에 들어갈 원소.
-
+	struct lock *wait_on_lock;			/* 락 추적 */
+	struct list donations;				/* 도네이션용 리스트 */
+	struct list_elem d_elem;			/* 위 리스트에 들어갈 원소 */
+	struct list child_list;
+	struct thread *parent;	/* wait syscall에서 사용하는 부모 스레드 */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */ 
@@ -113,6 +116,16 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+};
+
+/* 자식 프로세스의 정보가 담긴 구조체 */
+struct child_info {
+	tid_t child_tid;	/* 자식 프로세스 식별자 */
+	int exit_status;	/* 자식 exit()시 갱신되는 필드 */
+	bool is_waited;		/* 부모가 이 자식을 wait했는지 여부 */
+	bool has_exited;	/* 자식이 exit 됐는지 안 됐는지를 확인하는 필드*/
+	struct semaphore wait_sema;	/* wait syscall용 sema*/
+	struct list_elem elem;	/* 부모의 child_list에 들어가기 위한 리스트 요소*/
 };
 
 /* If false (default), use round-robin scheduler.

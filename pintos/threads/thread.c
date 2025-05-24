@@ -482,6 +482,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->priority = priority;
 	t->init_priority = priority;
 	t->magic = THREAD_MAGIC;
+	t->exit_status = -1;
 	
 	list_init (&t->donations);
 }

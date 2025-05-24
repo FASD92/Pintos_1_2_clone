@@ -4,13 +4,19 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
+#include "threads/init.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "filesys/file.h"
+#include "userprog/process.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
+static int64_t get_user (const uint8_t *uaddr);
+static bool put_user (uint8_t *udst, uint8_t byte);
+bool is_valid_user_ptr(const void *uaddr);
+
 
 
 /* System call.
@@ -47,13 +53,22 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	uint64_t arg0 = f->R.rdi;
 	uint64_t arg1 = f->R.rsi;
 	uint64_t arg2 = f->R.rdx;
-	uint64_t arg3 =	f->R.r10;
+	uint64_t arg3 =	f->R.r10;	/* 네번째 인자가 r10이네...*/
 	uint64_t arg4 = f->R.r8;
 	uint64_t arg5 = f->R.r9;
 	switch (syscall_num) {
+		case SYS_HALT:
+		syscall_halt();
+		break;
+
 		case SYS_EXIT:
 		syscall_exit((int) arg0);
 		break;
+
+		case SYS_WAIT:
+		f->R.rax = process_wait((tid_t) arg0);
+		break;
+
 		case SYS_WRITE:
 		f->R.rax = syscall_write((int) arg0,(void *) arg1, (unsigned) arg2);
 		break;
@@ -61,6 +76,10 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// printf ("system call!\n");
 	// thread_exit ();
 }
+void syscall_halt(void) {
+	power_off();
+}
+
 int syscall_exit(int status){
 	struct thread *cur = thread_current(); //프로세스의 커널 스레드.
     cur->exit_status = status; // 부모에게 전달할 종료 상태
@@ -69,7 +88,6 @@ int syscall_exit(int status){
 }
 
 int syscall_write(int fd,void * buffer, unsigned size){
-	
 	//fd1 -> stdout ->  FDT -> innode table->dev/tty에 출력
 	if (fd == 1) {  // STDOUT
         putbuf(buffer, size);
@@ -78,3 +96,45 @@ int syscall_write(int fd,void * buffer, unsigned size){
 	return -1;
 }
 
+/* 사용자 가상 주소 uaddr에서 1바이트 읽기 (UADDR은 KERN_BASE 미만)
+ * 성공 시 바이트 값, 세그폴트 시 -1 반환
+ * Reads a byte at user virtual address UADDR.
+ * UADDR must be below KERN_BASE.
+ * Returns the byte value if successful, -1 if a segfault
+ * occurred. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+    int64_t result;
+    __asm __volatile (
+    "movabsq $done_get, %0\n"
+    "movzbq %1, %0\n"
+    "done_get:\n"
+    : "=&a" (result) : "m" (*uaddr));
+    return result;
+}
+
+/* 사용자 주소 udst에 BYTE 쓰기 (udst는 KERN_BASE 미만)
+ * 성공 시 true, 세그폴트 시 false 반환
+ * Writes BYTE to user address UDST.
+ * UDST must be below KERN_BASE.
+ * Returns true if successful, false if a segfault occurred. */
+static bool
+put_user (uint8_t *udst, uint8_t byte) {
+    int64_t error_code;
+    __asm __volatile (
+    "movabsq $done_put, %0\n"
+    "movb %b2, %1\n"
+    "done_put:\n"
+    : "=&a" (error_code), "=m" (*udst) : "q" (byte));
+    return error_code != -1;
+}
+
+bool is_valid_user_ptr(const void *uaddr) {
+	if (uaddr == NULL || !is_user_vaddr(uaddr)) {
+		return false;
+	}
+	if (get_user((const uint8_t *)uaddr) == -1){
+		return false;
+	}
+	return true;
+}
